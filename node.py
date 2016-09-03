@@ -86,6 +86,8 @@ def start_scheduler():
                 push_task(task, len(data)>2 and data[2] or None)
             elif data[0] == 'sh':
                 push_task({'id':uuid.uuid1(), 'sh':' '.join(data[1:])})
+            else:
+                logging.error('unrecognized cmd:%s' % cmd)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         while True:
             global CPORT
