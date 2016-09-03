@@ -11,14 +11,17 @@ CHOST = '127.0.0.1'
 CPORT = 50005
 AUTH_KEY = 'a secret'
 SOCKET_SEP = '\r\n\r\n'
+MONITOR_ERR_LOG = 'monitor.err.log'
 
 def reg_rpc_client():
     BaseManager.register('get_taskq')
     BaseManager.register('get_resq')
+    BaseManager.register('get_logq')
     BaseManager.register('push_task')
 
 def start_queue():
     #data
+    logq = Queue.Queue()
     resq = Queue.Queue()
     node2q = dict() #when to clean? markbyxds 
     nodelock = Lock()
@@ -31,14 +34,19 @@ def start_queue():
         #pprint.pprint(node2q)
         return node2q[nodeid]
     def push_task(task, nodeid=None):
-        #print 'push_task', pprint.pprint(node2q)
+        #logging.debug('push_task %s node2q:%s' % (pprint.pformat(task), pprint.pprint(node2q)))
         if not nodeid:
-            for nodeid,q in node2q.iteritems(): q.put(task)
+            for nodeid,q in node2q.iteritems():
+                q.put(task)
+                logging.debug('taskq %s qsize %s' % (nodeid, q.qsize()))
         else:
             q = node2q[nodeid]
-            if q: q.put(task)
+            if q:
+                q.put(task)
+                logging.debug('taskq %s qsize %s' % (nodeid, q.qsize()))
     #rpc register
     BaseManager.register('get_taskq', callable = get_taskq)
+    BaseManager.register('get_logq', callable = lambda:logq)
     BaseManager.register('get_resq', callable = lambda:resq)
     BaseManager.register('push_task', callable = push_task)
     logging.info('listen at %s:%s ..' % (HOST,QPORT))
@@ -49,13 +57,15 @@ def start_queue():
 def start_scheduler():
     reg_rpc_client()
     qmgr = BaseManager(address = (HOST,QPORT), authkey = AUTH_KEY)  
+    logging.info('connecting to queue ..')
     qmgr.connect()
-    resq = qmgr.get_resq()
+    logging.info('connected to queue success')
     def push_task(task, nodeid=None):
         qmgr.push_task(task, nodeid)
         logging.info('pushed task %s' % (pprint.pformat(task), ))
-    def fetch_res():
+    def monitorres():
         logging.info('resq thread start')
+        resq = qmgr.get_resq()
         while True:
             res = resq.get()
             logging.info('pulled response %s' % (pprint.pformat(res),))
@@ -68,10 +78,7 @@ def start_scheduler():
             data = [td.strip() for td in cmd.strip().split(' ') if td.strip()]
             logging.debug('do_cmd data:%s' % pprint.pformat(data))
             if data[0] == 'pushtask':
-                #logging.debug('before execfile dir():%s' % pprint.pformat(dir()))
                 exec file(data[1],'r').read() in locals()
-                #logging.debug('after execfile dir():%s' % pprint.pformat(dir()))
-                #logging.debug('read task from %s:%s' % (data[1],pprint.pformat(task)))
                 push_task(task, len(data)>2 and data[2] or None)
             elif data[0] == 'sh':
                 pass
@@ -88,6 +95,9 @@ def start_scheduler():
         s.listen(1)
         logging.info('console listen at %s:%s ..' % (CHOST,CPORT))
         while True:
+            #do_cmd('pushtask t1.py')
+            #time.sleep(2)
+            #continue
             conn, addr = s.accept()
             logging.info('console: %s connected' % str(addr))
             buff = ''
@@ -109,18 +119,32 @@ def start_scheduler():
             conn.close()
         s.close()
         logging.info('console thread exit')
-    #resq thread
-    resth = Thread(target = fetch_res)
-    resth.daemon = True
-    resth.start()
-    #console thread
-    conth = Thread(target = console)
-    conth.daemon = True
-    conth.start()
+    def monitorlog():
+        logging.info('monitorlog thread start')
+        logq = qmgr.get_logq()
+        f = file(MONITOR_ERR_LOG,'wa')
+        while True:
+            msg = logq.get()
+            logging.debug('pulled a log msg:%s' % pprint.pformat(msg))
+            f.write('%s %s\n' % (msg['node'], msg['logfile']))
+            for l in msg['lines']:
+                f.write('%s\t%s\n' % l)
+            f.write('\n')
+            
+        logging.info('monitorlog thread exit')
+    #threads
+    ths = {monitorres:None, console:None, monitorlog:None}
+    for f,_ in ths.iteritems():
+        th = Thread(target = f)
+        th.daemon = True
+        th.start()
+        ths[f] = th
     while True:
         #push_task({'id':uuid.uuid1()})
         time.sleep(random.randrange(5))
-    resth.join()
+    for _,th in ths.iteritems():
+        if th.is_alive(): th.terminate()
+        th.join()
 
 def do_task(task):
     return {'id':task['id'], 'rt':0}
@@ -129,13 +153,35 @@ def start_worker():
     nodeid = get_ip_addr('eth0')
     reg_rpc_client()
     qmgr = BaseManager(address = (HOST,QPORT), authkey = AUTH_KEY)
+    logging.info('connecting to queue ..')
     qmgr.connect()
+    logging.info('connected to queue success')
     taskq = qmgr.get_taskq(nodeid)
     resq = qmgr.get_resq()
+    logq = qmgr.get_logq()
+    def monitorlog(paths=['/root/xds/eu-en/',]):
+        def report(fname, lns):
+            logq.put({'node':nodeid, 'logfile':fname, 'lines':lns})
+        logging.info('nonitorlog thread start')
+        import monitorlog as ml
+        ml.start(paths)
+        while True:
+            ml.update(report)
+            time.sleep(2)
+        ml.stop()
+        logging.info('nonitorlog thread exit')
+    mlth = Thread(target = monitorlog)
+    mlth.daemon = True
+    mlth.start() 
+    logging.info('waiting for task...')
     while True:
         task = taskq.get()
         logging.info('node %s pulled task (%s left): %s' % (nodeid, taskq.qsize(), pprint.pformat(task)))
-        resq.put(do_task(task))
+        res = do_task(task)
+        resq.put(res)
+        logging.info('node %s pushed res (%s left): %s' % (nodeid, resq.qsize(), pprint.pformat(res)))
+    if mlth.is_alive(): mlth.terminate()
+    mlth.join()
 
 def save_pid(pname = None):
     p = multiprocessing.current_process()
@@ -178,7 +224,7 @@ def daemon_start(func):
         over()
 
 if __name__ == '__main__':  
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     if len(sys.argv) < 2:
         logging.error('invalid argument.'); sys.exit(0)
     arg1 = sys.argv[1]
