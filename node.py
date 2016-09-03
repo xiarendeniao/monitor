@@ -11,6 +11,7 @@ SPORT = 50001
 CHOST = '127.0.0.1'
 CPORT = 50005
 AUTH_KEY = 'a secret'
+LOG_PATHS = None #list/tupple
 SOCKET_SEP = '\r\n\r\n'
 MONITOR_ERR_LOG = 'monitor.err.log'
 
@@ -166,7 +167,7 @@ def start_worker():
             res = p.stdout.read()
             return {'id':task['id'], 'sh':task['sh'], 'nodeid':nodeid, 'res':res}
         return {'id':task['id'], 'rt':0}
-    def monitorlog(paths=['/root/xds/eu-en/',]):
+    def monitorlog(paths):
         def report(fname, lns):
             logq.put({'node':nodeid, 'logfile':fname, 'lines':lns})
         logging.info('nonitorlog thread start')
@@ -177,7 +178,7 @@ def start_worker():
             time.sleep(2)
         ml.stop()
         logging.info('nonitorlog thread exit')
-    mlth = Thread(target = monitorlog)
+    mlth = Thread(target = monitorlog, kwargs = {"paths":LOG_PATHS or '.'})
     mlth.daemon = True
     mlth.start() 
     logging.info('waiting for task...')

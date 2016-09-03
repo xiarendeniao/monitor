@@ -13,3 +13,6 @@ distributed monitor:  log file , cpu, memory, disk ...
     worker process * n
     基本思想类似于消息队列(如activemq)，只是简洁一些(逻辑简洁、安装也简单些)
     只有广播机制和指定节点推送，丢掉了多节点从同一队列消耗数据的机制
+
+INSTALL
+    easy_install watchdog
