@@ -2,7 +2,8 @@
 from threading import Condition, Lock, Thread
 from multiprocessing import Process
 from multiprocessing.managers import BaseManager
-import multiprocessing, Queue, time, sys, random, pprint, signal, uuid, socket, logging
+import multiprocessing, Queue, time, sys, pprint, signal, uuid, socket, logging
+import subprocess
 
 HOST = '10.4.4.22'
 QPORT = 50000
@@ -34,7 +35,7 @@ def start_queue():
         #pprint.pprint(node2q)
         return node2q[nodeid]
     def push_task(task, nodeid=None):
-        #logging.debug('push_task %s node2q:%s' % (pprint.pformat(task), pprint.pprint(node2q)))
+        logging.debug('push_task %s node2q:%s' % (pprint.pformat(task), pprint.pformat(node2q)))
         if not nodeid:
             for nodeid,q in node2q.iteritems():
                 q.put(task)
@@ -69,6 +70,8 @@ def start_scheduler():
         while True:
             res = resq.get()
             logging.info('pulled response %s' % (pprint.pformat(res),))
+            if 'sh' in res:
+                sys.stderr.write('[%s]>>%s\n%s' % (res['nodeid'], res['sh'], res['res']))
         logging.info('resq thread exit')
     def console():
         logging.info('console thread start')
@@ -81,7 +84,7 @@ def start_scheduler():
                 exec file(data[1],'r').read() in locals()
                 push_task(task, len(data)>2 and data[2] or None)
             elif data[0] == 'sh':
-                pass
+                push_task({'id':uuid.uuid1(), 'sh':' '.join(data[1:])})
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         while True:
             global CPORT
@@ -141,13 +144,11 @@ def start_scheduler():
         ths[f] = th
     while True:
         #push_task({'id':uuid.uuid1()})
-        time.sleep(random.randrange(5))
+        time.sleep(1)
     for _,th in ths.iteritems():
         if th.is_alive(): th.terminate()
         th.join()
 
-def do_task(task):
-    return {'id':task['id'], 'rt':0}
 
 def start_worker():
     nodeid = get_ip_addr('eth0')
@@ -159,6 +160,12 @@ def start_worker():
     taskq = qmgr.get_taskq(nodeid)
     resq = qmgr.get_resq()
     logq = qmgr.get_logq()
+    def do_task(task):
+        if 'sh' in task:
+            p = subprocess.Popen(task['sh'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+            res = p.stdout.read()
+            return {'id':task['id'], 'sh':task['sh'], 'nodeid':nodeid, 'res':res}
+        return {'id':task['id'], 'rt':0}
     def monitorlog(paths=['/root/xds/eu-en/',]):
         def report(fname, lns):
             logq.put({'node':nodeid, 'logfile':fname, 'lines':lns})
@@ -224,7 +231,7 @@ def daemon_start(func):
         over()
 
 if __name__ == '__main__':  
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     if len(sys.argv) < 2:
         logging.error('invalid argument.'); sys.exit(0)
     arg1 = sys.argv[1]

@@ -96,7 +96,7 @@ def update(reportFunc):
             f2pos = dict((fname,{'pos':inf['pos'], 'ln':inf['ln'], 'inode':inf['inode']}) for fname,inf in f2info.iteritems())
             cPickle.dump(f2pos, file(F2POS_FILE, 'wb'))
             last_save_t = now
-            logging.info('save f2pos into %s: %s' % (pprint.pformat(f2pos),F2POS_FILE))
+            logging.debug('save f2pos into %s: %s' % (F2POS_FILE, pprint.pformat(f2pos)))
 
 def stop():
     global ob
