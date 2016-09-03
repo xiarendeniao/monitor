@@ -12,6 +12,7 @@ distributed monitor:  log file , cpu, memory, disk ...
     3.自动更新(执行python)
     
 架构
+
     queue process * 1
 
     scheduler process * 1
