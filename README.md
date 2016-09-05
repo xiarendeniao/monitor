@@ -26,6 +26,8 @@ distributed monitor:  log file , cpu, memory, disk ...
 INSTALL
 
     easy_install watchdog
+    
+    easy_install psutil
 
 BUG & TODO:
 

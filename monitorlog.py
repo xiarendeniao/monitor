@@ -37,7 +37,7 @@ def start(paths):
         except Exception,e:
             logging.error('load f2pos %s failed:%r' % (F2POS_FILE, e))
         else:
-            logging.info('read from %s: %s' % (F2POS_FILE, pprint.pformat(f2pos)))
+            #logging.debug('read from %s: %s' % (F2POS_FILE, pprint.pformat(f2pos)))
             for f,info in f2pos.iteritems():
                 st = os.stat(f)
                 if st.st_ino != info['inode']: continue
@@ -48,7 +48,7 @@ def start(paths):
                 else:
                     fo.seek(info['pos'])
                     f2info[f] = {'fo':fo, 'pos':fo.tell(), 'ln':info['pos'], 'inode':info['inode']}
-            logging.info('restored from %s: %s' % (F2POS_FILE, pprint.pformat(f2info)))
+            #logging.debug('restored from %s: %s' % (F2POS_FILE, pprint.pformat(f2info)))
 
 last_save_t = 0
 def update(reportFunc):
@@ -96,7 +96,7 @@ def update(reportFunc):
             f2pos = dict((fname,{'pos':inf['pos'], 'ln':inf['ln'], 'inode':inf['inode']}) for fname,inf in f2info.iteritems())
             cPickle.dump(f2pos, file(F2POS_FILE, 'wb'))
             last_save_t = now
-            logging.debug('save f2pos into %s: %s' % (F2POS_FILE, pprint.pformat(f2pos)))
+            #logging.debug('save f2pos into %s: %s' % (F2POS_FILE, pprint.pformat(f2pos)))
 
 def stop():
     global ob
