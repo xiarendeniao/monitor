@@ -29,6 +29,16 @@ INSTALL
     
     easy_install psutil
 
+USAGE
+
+    python main.py queue
+
+    python main.py scheduler
+
+    python main.py worker
+
+    telnet 127.1 50005 >> pushtash t1.py | sh ls -lhrt | ctl status | ctl kill
+
 BUG & TODO:
 
     1.监控系统资源，自动更新
