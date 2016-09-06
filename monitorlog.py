@@ -1,7 +1,7 @@
 #encoding=utf-8
-import os, re, sys, time, logging, pprint, threading, cPickle
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent
+import os, re, sys, time, logging, pprint, threading, cPickle
 
 ob = None
 lock = threading.Lock() #f2ut
@@ -24,6 +24,7 @@ class LogEventHandler(FileSystemEventHandler):
         #print('on_modified file: %s, thread %s, f2ut %s' % (ev.src_path, threading.currentThread(), pprint.pformat(f2ut)))
 
 def start(paths):
+    #print('============%s' % pprint.pformat(paths))
     global ob, f2info
     assert(not ob)
     event_handler = LogEventHandler()
@@ -39,9 +40,9 @@ def start(paths):
         else:
             #logging.debug('read from %s: %s' % (F2POS_FILE, pprint.pformat(f2pos)))
             for f,info in f2pos.iteritems():
-                st = os.stat(f)
-                if st.st_ino != info['inode']: continue
                 try:
+                    st = os.stat(f)
+                    if st.st_ino != info['inode']: continue
                     fo = file(f, 'r')
                 except Exception,e:
                     logging.error('open file %s failed:%r' % (f,e))
