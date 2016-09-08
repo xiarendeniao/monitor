@@ -9,12 +9,17 @@ taskq, ctlq, resq, logq, nodeid = None, None, None, None, None
 
 def do_task(task):
     if 'sh' in task:
-        taskproc = subprocess.Popen(task['sh'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
-        logging.debug('to read from sh child proc..')
-        res = taskproc.stdout.read()
-        logging.debug('read from sh child proc done..')
-        taskproc = None
-        return {'id':task['id'], 'sh':task['sh'], 'nodeid':nodeid, 'res':res}
+        try:
+            proc = subprocess.Popen(task['sh'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError, e:
+            logging.error("error start subprocess: %s" % str(e))
+            return {'id':task['id'], 'sh':task['sh'], 'nodeid':nodeid, 'res':'error:%r'%e, 'rtcode':1}
+        while None==proc.poll():
+            time.sleep(1)
+        proc.wait()
+        res = proc.stdout.read() + '\n' + proc.stderr.read()
+        rc = proc.returncode
+        return {'id':task['id'], 'sh':task['sh'], 'nodeid':nodeid, 'res':res, 'rtcode':rc}
     return {'id':task['id'], 'rt':0}
 
 def th_task():

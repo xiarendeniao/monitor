@@ -1,7 +1,8 @@
 #encoding=utf-8 
 
 #queue listening
-HOST = '10.4.4.22'
+#HOST = '10.4.4.22'
+HOST = '127.0.0.1'
 QPORT = 50000
 AUTH_KEY = 'a secret'
 

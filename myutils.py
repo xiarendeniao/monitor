@@ -15,7 +15,7 @@ def kill_sub_proc(pid=None):
     for cp in p.children():
         logging.info('to kill proc %s' % cp.pid)
         cp.terminate()
-        cp.join()
+        cp.wait()
     return True
 
 def get_children_procs(pid=None):

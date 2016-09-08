@@ -38,12 +38,12 @@ def push_ctl(task, nodeid=None):
     if not nodeid:
         for nodeid,q in node2ctlq.iteritems():
             q.put(task)
-            logging.debug('taskq %s qsize %s' % (nodeid, q.qsize()))
+            logging.debug('ctlq %s qsize %s' % (nodeid, q.qsize()))
     else:
         q = node2ctlq[nodeid]
         if q:
             q.put(task)
-            logging.debug('taskq %s qsize %s' % (nodeid, q.qsize()))
+            logging.debug('ctlq %s qsize %s' % (nodeid, q.qsize()))
 
 def start():
     #rpc register
